@@ -55,8 +55,11 @@ class Action(Enum):
     EAST = (0, 1, 1)
     NORTH = (-1, 0, 1)
     SOUTH = (1, 0, 1)
-
     # TO-DO: add diagonals
+    NORTHEAST = (1, 1, np.sqrt(2))
+    NORTHWEST = (1, -1, np.sqrt(2))
+    SOUTHEAST = (-1, 1, np.sqrt(2))
+    SOUTHWEST = (-1, -1, np.sqrt(2))
 
     @property
     def cost(self):
@@ -65,7 +68,6 @@ class Action(Enum):
     @property
     def delta(self):
         return (self.value[0], self.value[1])
-
 
 def valid_actions(grid, current_node):
     """
@@ -87,8 +89,15 @@ def valid_actions(grid, current_node):
     if y + 1 > m or grid[x, y + 1] == 1:
         valid_actions.remove(Action.EAST)
     # TO DO: add diagonals
+    if x - 1 < 0 or y + 1 > m or grid[x - 1, y + 1] == 1:
+        valid_actions.remove(Action.NORTHEAST)
+    if x - 1 < 0 or y - 1 < 0 or grid[x - 1, y - 1] == 1:
+        valid_actions.remove(Action.NORTHWEST)
+    if x + 1 > n or y + 1 > m or grid[x + 1, y + 1] == 1:
+        valid_actions.remove(Action.SOUTHEAST)
+    if x + 1 < 0 or y - 1 < 0 or grid[x + 1, y - 1] == 1: 
+        valid_actions.remove(Action.SOUTHWEST)    
     return valid_actions
-
 
 def a_star(grid, h, start, goal):
 
@@ -141,8 +150,43 @@ def a_star(grid, h, start, goal):
         print('**********************') 
     return path[::-1], path_cost
 
-
-
 def heuristic(position, goal_position):
     return np.linalg.norm(np.array(position) - np.array(goal_position))
 
+# --- Path Pruning ---------------------
+def prune_path(path):
+    '''
+    Using to prune an existing planned path using a collinearity check.
+    This method goes point-by-point getting sets of three points and checks if
+    the middle point is collinear with the two ends points. If so, it removes it
+
+    Inputs:
+    path - list of waypoints where each waypoint is a list, array, or tuple in [x,y,z] format
+
+    Returns:
+    pruned_path - path with collinear points removed
+    '''
+    if path is not None:
+        pruned_path = [p for p in path]
+        # TODO: prune the path!
+        i = 0
+        while i<len(pruned_path) - 2:
+            p1 = _point(pruned_path[i])
+            p2 = _point(pruned_path[i+1])
+            p3 = _point(pruned_path[i+2])
+            if _collinearity_check(p1, p2, p3):
+                pruned_path.remove(pruned_path[i+1])
+            else:
+                i+=1
+    else:
+        pruned_path = path
+        
+    return pruned_path
+
+def _point(p):
+    return np.array([p[0], p[1], 1.]).reshape(1, -1)
+
+def _collinearity_check(p1, p2, p3, epsilon=1e-6):   
+    m = np.concatenate((p1, p2, p3), 0)
+    det = np.linalg.det(m)
+    return abs(det) < epsilon
