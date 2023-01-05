@@ -9,7 +9,7 @@ from planning_utils import a_star, heuristic, create_grid, prune_path
 from udacidrone import Drone
 from udacidrone.connection import MavlinkConnection
 from udacidrone.messaging import MsgID
-from udacidrone.frame_utils import global_to_local
+from udacidrone.frame_utils import global_to_local, local_to_global
 
 
 class States(Enum):
@@ -155,14 +155,21 @@ class MotionPlanning(Drone):
         grid_start = (int(current_local_position[0]) - north_offset,
                       int(current_local_position[1]) - east_offset)
         # Set goal as some arbitrary position on the grid
-        grid_goal = (grid_start[0] + 25, grid_start[1] + 10)
+        #grid_goal = (grid_start[0] + 25, grid_start[1] + 10)
         # TODO: adapt to set goal as latitude / longitude position and convert
-        
+        goal_lon = -122.397010
+        goal_lat = 37.792970
+        lon_goal, lat_goal, _ = global_to_local((goal_lon, goal_lat, 0), current_global_position)
+        grid_goal = (int(lon_goal) + grid_start[0], int(lat_goal) + grid_start[1])
         # Run A* to find a path from start to goal
         # TODO: add diagonal motions with a cost of sqrt(2) to your A* implementation
         # or move to a different search space such as a graph (not done here)
         # *** DONE ****
-        print(f'\tLocal Start: {grid_start}\n\tGoal: {grid_goal}')
+        if grid[grid_goal[0], grid_goal[1]]:
+            print('Goal Cell occupied!')
+            return
+        print(f'\tLocal Start: {grid_start}\n\tGlobal frame goal: {local_to_global((grid_goal[0], grid_goal[1], 10), current_global_position)}')
+        print(f'\tLocal Frame goal: {grid_goal}')
         path, _ = a_star(grid, heuristic, grid_start, grid_goal)
         # TODO: prune path to minimize number of waypoints
         # *** DONE ***
@@ -175,14 +182,8 @@ class MotionPlanning(Drone):
 
     def start(self):
         self.start_log("Logs", "NavLog.txt")
-
         print("starting connection")
         self.connection.start()
-
-        # Only required if they do threaded
-        # while self.in_mission:
-        #    pass
-
         self.stop_log()
 
 
