@@ -31,33 +31,81 @@ I ran both in the Motion Planning simulator. `backyard_flyer_solution.py` works 
 
 ### Implementing Your Path Planning Algorithm
 
-#### 1. Set your global home position
-Here students should read the first line of the csv file, extract lat0 and lon0 as floating point values and use the self.set_home_position() method to set global home. Explain briefly how you accomplished this in your code.
+To meet the objectives for an 8-connected A* route planner I modified the `Action` class in `planning_utils.py` and the `plan_path` method from the `MotionPlanning` class in `motion_planning.py`.
 
+#### 1. Set your global home position
+
+I used basic file IO to open `colliders.csv` and read the first line. I then used the `strip` and `split` functions to isolate the individual strings for the latitude and longitude. I then used `split` again to find the numerical value and cast it to a float.
+
+```
+with open('colliders.csv') as f:
+    line0 = f.readline()
+line0 = line0.strip()
+lat_str, lon_str = line0.split(',')
+lat0 = float(lat_str.split()[1])
+lon0 = float(lon_str.split()[1])
+```
 
 And here is a lovely picture of our downtown San Francisco environment from above!
 ![Map of SF](./misc/map.png)
 
 #### 2. Set your current local position
-Here as long as you successfully determine your local position relative to global home you'll be all set. Explain briefly how you accomplished this in your code.
 
+These previous latitude and longitude coordinates with an altitude of zero were used to set the drone's home position.
 
-Meanwhile, here's a picture of me flying through the trees!
-![Forest Flying](./misc/in_the_trees.png)
+```
+self.set_home_position(lon0, lat0, 0)
+```
 
 #### 3. Set grid start position from local position
-This is another step in adding flexibility to the start location. As long as it works you're good to go!
+
+Using the `create_grid` function to get the raw data grid as well as the relative north and east offsets I calculated the grid start coordinate relative to the current location:
+
+```
+grid_start = (int(current_local_position[0]) - north_offset,
+              int(current_local_position[1]) - east_offset)
+```
 
 #### 4. Set grid goal position from geodetic coords
-This step is to add flexibility to the desired goal location. Should be able to choose any (lat, lon) within the map and have it rendered to a goal location on the grid.
+Using manual control I flew the drone around to get suitable goal position coordinates. I used the `global_to_local` function transform these coordinates to the local grid frame and added in the grid start coordinates. Due to a bug, the buildings and environment did not render in my simulator, so I added an extra check to make sure that the grid cell was not occupied.
+
+```
+goal_lon = -122.397010
+    goal_lat = 37.792970
+    lon_goal, lat_goal, _ = global_to_local((goal_lon, goal_lat, 0), current_global_position)
+    grid_goal = (int(lon_goal) + grid_start[0], int(lat_goal) + grid_start[1])
+    if grid[grid_goal[0], grid_goal[1]]:
+        print('Goal Cell occupied!')
+        return
+```
 
 #### 5. Modify A* to include diagonal motion (or replace A* altogether)
-Minimal requirement here is to modify the code in planning_utils() to update the A* implementation to include diagonal motions on the grid that have a cost of sqrt(2), but more creative solutions are welcome. Explain the code you used to accomplish this step.
+
+I added in four additional values to the `Action` class:
+
+```
+NORTHEAST = (1, 1, np.sqrt(2))
+NORTHWEST = (1, -1, np.sqrt(2))
+SOUTHEAST = (-1, 1, np.sqrt(2))
+SOUTHWEST = (-1, -1, np.sqrt(2))
+```
+
+I also modified the `valid_action` method to check these additional actions:
+
+```
+if x - 1 < 0 or y + 1 > m or grid[x - 1, y + 1] == 1:
+    valid_actions.remove(Action.NORTHEAST)
+if x - 1 < 0 or y - 1 < 0 or grid[x - 1, y - 1] == 1:
+    valid_actions.remove(Action.NORTHWEST)
+if x + 1 > n or y + 1 > m or grid[x + 1, y + 1] == 1:
+    valid_actions.remove(Action.SOUTHEAST)
+if x + 1 < 0 or y - 1 < 0 or grid[x + 1, y - 1] == 1: 
+    valid_actions.remove(Action.SOUTHWEST)
+```
 
 #### 6. Cull waypoints 
-For this step you can use a collinearity test or ray tracing method like Bresenham. The idea is simply to prune your path of unnecessary waypoints. Explain the code you used to accomplish this step.
 
-
+To cull unneccessary waypoints, I used the collinearity test developed in the lessons (`prune_path`) which uses two addtional private methods: `_point` and `_collinearity_check`. This method takes an array-like datastructure containing (x,y,z) points and checks to see if intermediary points are collinear.
 
 ### Execute the flight
 #### 1. Does it work?
@@ -65,8 +113,4 @@ It works!
 
 ### Double check that you've met specifications for each of the [rubric](https://review.udacity.com/#!/rubrics/1534/view) points.
   
-# Extra Challenges: Real World Planning
-
-For an extra challenge, consider implementing some of the techniques described in the "Real World Planning" lesson. You could try implementing a vehicle model to take dynamic constraints into account, or implement a replanning method to invoke if you get off course or encounter unexpected obstacles.
-
-
+Rubric points are met.
